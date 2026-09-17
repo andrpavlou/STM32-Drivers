@@ -85,6 +85,8 @@ int main(void)
 
   /* Configure the system clock */
   SystemClock_Config();
+  
+  my_uart_init();
 
   /* USER CODE BEGIN SysInit */
 
@@ -113,21 +115,28 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    
+    uint8_t byte = my_uart_read_byte();
+    my_uart_send_byte(byte);
+
+    if (byte == '\r') {
+        my_uart_send_byte('\n');
+    }
 
     /* -- Sample board code for User push-button in interrupt mode ---- */
-    if (BspButtonState == BUTTON_PRESSED)
-    {
-      /* Update button state */
-      BspButtonState = BUTTON_RELEASED;
-      /* -- Sample board code to toggle leds ---- */
-      BSP_LED_Toggle(LED2);
-      /* ..... Perform your action ..... */
-    }
+    // if (BspButtonState == BUTTON_PRESSED)
+    // {
+    //   /* Update button state */
+    //   BspButtonState = BUTTON_RELEASED;
+    //   /* -- Sample board code to toggle leds ---- */
+    //   BSP_LED_Toggle(LED2);
+    //   /* ..... Perform your action ..... */
+    // }
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
-  /* USER CODE END 3 */
+  // /* USER CODE END 3 */
 }
 
 /**

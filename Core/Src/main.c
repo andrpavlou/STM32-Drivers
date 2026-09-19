@@ -118,32 +118,45 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 
   uint32_t last_toggle = HAL_GetTick();
+  uint8_t pending_byte = 0U;
+  bool tx_pending = false;
 
   while (1)
   {
-      uint8_t byte = 0;
+    /* USER CODE BEGIN 3 */
 
-      if (my_uart_read_byte(&byte))
+    /* Only consume new input when the previous output is queued. */
+    if (!tx_pending)
+    {
+      tx_pending = my_uart_read_byte(&pending_byte);
+    }
+
+    /* Try once per iteration. Keep the byte if the TX ring is full. */
+    if (tx_pending && my_uart_send_byte(pending_byte))
+    {
+      if (pending_byte == '\r')
       {
-          my_uart_send_byte(byte);
-
-          if (byte == '\r')
-          {
-            my_uart_send_byte('\n');
-          }
+        /* CR was queued; send its LF before consuming more input. */
+        pending_byte = '\n';
       }
-
-      /* Blink every 500 tick diff*/
-      uint32_t curr_toggle = HAL_GetTick();
-      if (curr_toggle - last_toggle > 500) { 
-        last_toggle = curr_toggle;
-        BSP_LED_Toggle(LED2);
+      else
+      {
+        tx_pending = false;
       }
+    }
 
-      /* Other application work can run even when no byte arrives. */
+    /* Blink independently of UART availability. */
+    uint32_t now = HAL_GetTick();
+    if ((uint32_t)(now - last_toggle) >= 500U)
+    {
+      last_toggle = now;
+      BSP_LED_Toggle(LED2);
+    }
+    /* USER CODE END 3 */
   }
-  // /* USER CODE END 3 */
 }
+/* USER CODE END WHILE */
+
 
 /**
   * @brief System Clock Configuration

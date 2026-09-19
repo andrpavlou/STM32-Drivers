@@ -1,52 +1,17 @@
 
 /* Includes */
 #include "my_uart.h"
-
-#define RX_BUFFER_SIZE 128U // Power of 2
-
-typedef struct RX_BUFFER {
-    uint8_t data[RX_BUFFER_SIZE];
-    _Atomic uint8_t head;
-    _Atomic uint8_t tail;
-} RX_BUFFER;
-
-static RX_BUFFER ring_buffer;
-
-static void rx_init_buffer(void)
-{
-    ring_buffer.head = 0;
-    ring_buffer.tail = 0;
-}
+#include "ring_buffer.h"
 
 
-static bool rx_buffer_push(uint8_t byte) 
-{
-    uint8_t next_tail = ((ring_buffer.tail + 1) & (RX_BUFFER_SIZE - 1));
-    if (next_tail == ring_buffer.head) {
-        return false;
-    }
+static RingBuffer rx_ring;
+static RingBuffer tx_ring;
 
-    ring_buffer.data[ring_buffer.tail] = byte;
-    ring_buffer.tail = next_tail;
 
-    return true;
-}
-
-static bool rx_buffer_pop(uint8_t *byte) 
-{
-    if (ring_buffer.head == ring_buffer.tail) {
-        return false;
-    }
-
-    *byte = ring_buffer.data[ring_buffer.head];
-    ring_buffer.head = ((ring_buffer.head + 1) & (RX_BUFFER_SIZE - 1));
-
-    return true;
-}
 
 
 void my_uart_init(void) 
-{
+{    
     /* Enable GPIOA and USART2 clocks, then read back for startup delay. */
     RCC->AHB1ENR |= RCC_AHB1ENR_GPIOAEN;
     (void)RCC->AHB1ENR;
@@ -90,10 +55,13 @@ void my_uart_init(void)
     USART2->BRR = (uart_clock_hz + baud / 2U) / baud;
 
 
-    rx_init_buffer();
+    ring_buffer_init(&rx_ring);
+    ring_buffer_init(&tx_ring);
 
-    if (!atomic_is_lock_free(&ring_buffer.head) ||
-        !atomic_is_lock_free(&ring_buffer.tail)) {
+    if (!atomic_is_lock_free(&rx_ring.head) ||
+        !atomic_is_lock_free(&rx_ring.tail) || 
+        !atomic_is_lock_free(&tx_ring.head) ||
+        !atomic_is_lock_free(&tx_ring.tail)) {
         Error_Handler();
         return;
     }
@@ -112,26 +80,28 @@ void my_uart_init(void)
 }
 
 
-void my_uart_send_byte(uint8_t byte)
+bool my_uart_send_byte(uint8_t byte)
 {
-
-    while ((USART2->SR & USART_SR_TXE_Msk) == 0U) 
-    {
-
+    if (ring_buffer_push(&tx_ring,  byte) == false) {
+        return false;
     }
 
-    USART2->DR = byte;
+    /* Ask the interrupt handler to start draining the TX ring. */
+    USART2->CR1 |= USART_CR1_TXEIE;
+
+    return true;
 }
 
 bool my_uart_read_byte(uint8_t *byte) 
 {
-    return rx_buffer_pop(byte);
+    return ring_buffer_pop(&rx_ring, byte);
 }
 
 
 void my_uart_irq_handler(void)
 {
     uint32_t status = USART2->SR;
+    uint8_t byte = 0;
 
     const uint32_t errors = USART_SR_ORE |
                             USART_SR_FE |
@@ -139,22 +109,30 @@ void my_uart_irq_handler(void)
                             USART_SR_PE;
 
     /* Handle received data or a receive error. */
-    if ((status & (USART_SR_RXNE | errors)) != 0U)
-    {
+    if ((status & (USART_SR_RXNE | errors)) != 0U) {
         /* Reading SR followed by DR clears receive error flags.
            Reading DR also clears RXNE. */
-        uint8_t byte = (uint8_t)USART2->DR;
+        byte = (uint8_t)USART2->DR;
 
-        /* Discard the byte if an error was reported. */
-        if ((status & errors) != 0U)
-        {
-            return;
+
+        if (((status & USART_SR_RXNE) != 0U) &&
+            ((status & errors) == 0U)) {
+            (void)ring_buffer_push(&rx_ring, byte);
         }
 
-        if ((status & USART_SR_RXNE) != 0U)
-        {
-            /* If the ring buffer is full, drop this byte. */
-            (void)rx_buffer_push(byte);
-        }
     }
+
+    if (((status & USART_SR_TXE) != 0U) && 
+        ((USART2->CR1 & USART_CR1_TXEIE) != 0U)) {
+        
+        if (ring_buffer_pop(&tx_ring, &byte)) {
+            USART2->DR = byte;
+        } else {
+            /* Nothing queued: stop transmit-empty interrupts. */
+            USART2->CR1 &= ~USART_CR1_TXEIE;
+        }
+
+    }
+
+
 }

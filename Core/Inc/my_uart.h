@@ -1,4 +1,3 @@
-
 #ifndef __MY_UART_H
 #define __MY_UART_H
 
@@ -7,11 +6,9 @@ extern "C" {
 #endif /* __cplusplus */
 
 #include <stdint.h>
-
-#include <stdint.h>
-#include <string.h>
 #include <stdbool.h>
-#include <stdatomic.h> 
+#include <stdint.h>
+
 
 #include "stm32f446xx.h"
 #include "stm32f4xx_hal.h"
@@ -91,7 +88,7 @@ extern "C" {
 
 
 void my_uart_init(void);
-void my_uart_send_byte(uint8_t byte);
+bool my_uart_send_byte(uint8_t byte);
 bool my_uart_read_byte(uint8_t* byte);
 void my_uart_irq_handler(void);
 

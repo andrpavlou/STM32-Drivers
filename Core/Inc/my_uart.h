@@ -8,6 +8,15 @@ extern "C" {
 
 #include <stdint.h>
 
+#include <stdint.h>
+#include <string.h>
+#include <stdbool.h>
+#include <stdatomic.h> 
+
+#include "stm32f446xx.h"
+#include "stm32f4xx_hal.h"
+#include "my_uart.h"
+#include "main.h"
 
 /*
 
@@ -64,10 +73,27 @@ extern "C" {
 */
 
 
+
+/* 
+    Interrupt driven 
+
+    USART_CR1 -> USART_SR_RXNE_Msk 
+    0: Data is not received 1: Received data is ready to be read.
+
+
+    USART2_IRQn in NVIC
+
+
+
+
+*/
+
+
+
 void my_uart_init(void);
 void my_uart_send_byte(uint8_t byte);
-uint8_t my_uart_read_byte(void);
-
+bool my_uart_read_byte(uint8_t* byte);
+void my_uart_irq_handler(void);
 
 
 #ifdef __cplusplus

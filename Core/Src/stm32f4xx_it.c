@@ -214,4 +214,14 @@ void EXTI15_10_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
+void USART2_IRQHandler(void)
+{
+  my_uart_irq_handler();
+}
+
+/* USER CODE END 1 */
+
+
+
+/* USER CODE BEGIN 1 */
 /* USER CODE END 1 */

@@ -18,6 +18,8 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32f4xx_hal.h"
+#include "stm32f4xx_nucleo.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -86,7 +88,6 @@ int main(void)
   /* Configure the system clock */
   SystemClock_Config();
   
-  my_uart_init();
 
   /* USER CODE BEGIN SysInit */
 
@@ -94,7 +95,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+
   /* USER CODE BEGIN 2 */
+  my_uart_init();
 
   /* USER CODE END 2 */
 
@@ -113,28 +116,31 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  uint32_t last_toggle = HAL_GetTick();
+
   while (1)
   {
-    
-    uint8_t byte = my_uart_read_byte();
-    my_uart_send_byte(byte);
+      uint8_t byte = 0;
 
-    if (byte == '\r') {
-        my_uart_send_byte('\n');
-    }
+      if (my_uart_read_byte(&byte))
+      {
+          my_uart_send_byte(byte);
 
-    /* -- Sample board code for User push-button in interrupt mode ---- */
-    // if (BspButtonState == BUTTON_PRESSED)
-    // {
-    //   /* Update button state */
-    //   BspButtonState = BUTTON_RELEASED;
-    //   /* -- Sample board code to toggle leds ---- */
-    //   BSP_LED_Toggle(LED2);
-    //   /* ..... Perform your action ..... */
-    // }
-    /* USER CODE END WHILE */
+          if (byte == '\r')
+          {
+            my_uart_send_byte('\n');
+          }
+      }
 
-    /* USER CODE BEGIN 3 */
+      /* Blink every 500 tick diff*/
+      uint32_t curr_toggle = HAL_GetTick();
+      if (curr_toggle - last_toggle > 500) { 
+        last_toggle = curr_toggle;
+        BSP_LED_Toggle(LED2);
+      }
+
+      /* Other application work can run even when no byte arrives. */
   }
   // /* USER CODE END 3 */
 }
